@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
 import numpy as np
-import batch as batchHandler
+# import batch as batchHandler
+import sys
 
 (x_train, y_train), (x_test, y_test) = keras.datasets.fashion_mnist.load_data()
 
@@ -29,13 +30,16 @@ y_test = oneHotEncode(y_test)
 x_train = x_train.astype('float32') / 255
 x_test = x_test.astype('float32') / 255
 
+
 def compute_accuracy(v_xs, v_ys):
     global prediction
     y_pre = sess.run(prediction, feed_dict={xs: v_xs, keep_prob: 1})
-    correct_prediction = tf.equal(tf.argmax(y_pre,1), tf.argmax(v_ys,1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    result = sess.run(accuracy, feed_dict={xs: v_xs, ys: v_ys, keep_prob: 1})
-    return result
+    correct = np.equal(np.argmax(y_pre,1),np.argmax(v_ys,1))
+    acc = np.mean(correct*1)
+    # correct_prediction = tf.equal(tf.argmax(y_pre,1), tf.argmax(v_ys,1))
+    # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    # result = sess.run(accuracy, feed_dict={xs: v_xs, ys: v_ys, keep_prob: 1})
+    return acc
 
 def addWeight(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
@@ -101,11 +105,12 @@ h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 ## fc2 layer ##
 W_fc2 = addWeight([1024, 10])
 b_fc2 = addBias([10])
-prediction = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
-
+# prediction = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+prediction = tf.matmul(h_fc1_drop, W_fc2) + b_fc2 # not use softmax because of using softmax cross entropy
 
 # the error between prediction and real data
-cross_entropy = tf.reduce_mean(-tf.reduce_sum(ys * tf.log(prediction),reduction_indices=[1])) 
+# cross_entropy = tf.reduce_mean(-tf.reduce_sum(ys * tf.log(prediction),reduction_indices=[1])) 
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=ys)
 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
 
@@ -140,8 +145,8 @@ class Data():
             return batch_samples, batch_labels
         else:
             new_pointer = self.pointer+num - len(self.samples)
-            batch_samples = self.samples[self.pointer:-1] + self.samples[:new_pointer]
-            batch_labels = self.labels[self.pointer:-1] + self.labels[:new_pointer]
+            batch_samples = np.concatenate((self.samples[self.pointer:-1], self.samples[:new_pointer]),axis=0)
+            batch_labels = np.concatenate((self.labels[self.pointer:-1], self.labels[:new_pointer]),axis=0)
             self.pointer = new_pointer
             return batch_samples, batch_labels
 
@@ -153,12 +158,13 @@ training_data = Data(x_train,y_train) #put our trainging data into this class
 # In[60]:
 
 
-for i in range(20000):
+for i in range(10000):
     batch_xs, batch_ys = training_data.next_batch(batch_size)
     batch_xs = batch_xs.reshape((batch_size,784))
     sess.run(train_step, feed_dict={xs: batch_xs, ys: batch_ys, keep_prob: 0.5})
     if i % 50 == 0:
         acc = compute_accuracy(x_test.reshape(len(x_test),784), y_test)
+        print('iteration: ', i)
         print('accuracy: ', acc)
         # learning_curve_data.append(acc)   
 
